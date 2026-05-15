@@ -191,3 +191,17 @@ input  { font-family: inherit; }
 .animate-spin-slow   { animation: spin .6s linear infinite; }
 .animate-slide-in    { animation: slide-in .2s ease both; }
 .animate-glow-pop    { animation: glow-pop .6s ease both; }
+.input-field-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 14px;
+  background: var(--bg-elev-1);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  transition: border-color .15s;
+}
+.input-field-wrap:focus-within {
+  border-color: var(--green-500);
+}
