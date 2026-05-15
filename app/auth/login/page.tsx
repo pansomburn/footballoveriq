@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [error,    setError]    = useState<string|null>(null)
   const [success,  setSuccess]  = useState<string|null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [focusedField, setFocusedField] = useState<string|null>(null)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -62,7 +63,23 @@ export default function LoginPage() {
 
   function handleDemo() { router.push('/dashboard/live') }
 
-  // ── Form panel (shared desktop/mobile) ────────────────────────
+  const fieldBorder = (field: string) =>
+    focusedField === field ? 'var(--green-500)' : 'var(--hairline)'
+
+  const inputWrap = (field: string): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: 10,
+    height: 48, padding: '0 14px',
+    background: 'var(--bg-elev-1)',
+    border: `1px solid ${fieldBorder(field)}`,
+    borderRadius: 10, transition: 'border-color .15s',
+  })
+
+  const inputStyle: React.CSSProperties = {
+    flex: 1, background: 'transparent', border: 'none',
+    outline: 'none', color: 'var(--text-1)',
+    fontSize: 16, fontFamily: 'inherit',
+  }
+
   const FormPanel = () => (
     <div style={{
       width: '100%',
@@ -71,7 +88,6 @@ export default function LoginPage() {
       display: 'flex', flexDirection: 'column',
       justifyContent: isMobile ? 'flex-start' : 'center',
     }}>
-      {/* Mobile logo */}
       {isMobile && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
           <div style={{
@@ -88,7 +104,6 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Heading */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>
           {mode === 'login' ? 'SIGN IN' : 'SIGN UP'}
@@ -96,8 +111,7 @@ export default function LoginPage() {
         <h2 style={{ fontSize: isMobile ? 28 : 32, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-1)', margin: 0, lineHeight: 1.1 }}>
           {mode === 'login'
             ? <>{isMobile ? <>ยินดีต้อนรับ<br /><span style={{ color: 'var(--green-400)' }}>กลับมาอีกครั้ง</span></> : 'ยินดีต้อนรับกลับมา'}</>
-            : 'สมัครสมาชิก'
-          }
+            : 'สมัครสมาชิก'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-3)', margin: '8px 0 0' }}>
           {mode === 'login'
@@ -106,55 +120,61 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Error/Success */}
       {error && (
-        <div style={{ background: 'var(--red-soft)', border: '1px solid rgba(239,72,86,.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, color: 'var(--red)', fontSize: 13 }}>
+        <div style={{ background: 'var(--red-soft)', border: '1px solid rgba(239,72,86,.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, color: 'var(--red)', fontSize: 14 }}>
           {error}
         </div>
       )}
       {success && (
-        <div style={{ background: 'var(--green-soft)', border: '1px solid rgba(46,212,111,.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, color: 'var(--green-300)', fontSize: 13 }}>
+        <div style={{ background: 'var(--green-soft)', border: '1px solid rgba(46,212,111,.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, color: 'var(--green-300)', fontSize: 14 }}>
           {success}
         </div>
       )}
 
-      {/* Form */}
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {mode === 'register' && (
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 7 }}>ชื่อที่แสดง</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 14px', background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)', borderRadius: 10, transition: 'border-color .15s' }}
-              onFocusCapture={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--green-500)'}
-              onBlurCapture={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--hairline)'}>
-              <span style={{ fontSize: 14, color: 'var(--text-3)' }}>👤</span>
-              <input value={name} onChange={e => setName(e.target.value)} required={mode==='register'}
-                placeholder="ชื่อของคุณ"
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-1)', fontSize: 14, fontFamily: 'inherit' }} />
+            <div style={inputWrap('name')}>
+              <span style={{ fontSize: 14, color: 'var(--text-3)', flexShrink: 0 }}>👤</span>
+              <input
+                value={name} onChange={e => setName(e.target.value)}
+                required={mode === 'register'} placeholder="ชื่อของคุณ"
+                onFocus={() => setFocusedField('name')}
+                onBlur={() => setFocusedField(null)}
+                style={inputStyle}
+              />
             </div>
           </div>
         )}
 
         <div>
           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 7 }}>Email</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 14px', background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)', borderRadius: 10, transition: 'border-color .15s' }}
-            onFocusCapture={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--green-500)'}
-            onBlurCapture={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--hairline)'}>
-            <span style={{ fontSize: 14, color: 'var(--text-3)' }}>✉</span>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              placeholder="khun.player@example.com"
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-1)', fontSize: 14, fontFamily: 'inherit' }} />
+          <div style={inputWrap('email')}>
+            <span style={{ fontSize: 14, color: 'var(--text-3)', flexShrink: 0 }}>✉</span>
+            <input
+              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              required placeholder="khun.player@example.com"
+              autoComplete="email"
+              onFocus={() => setFocusedField('email')}
+              onBlur={() => setFocusedField(null)}
+              style={inputStyle}
+            />
           </div>
         </div>
 
         <div>
           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 7 }}>Password</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 14px', background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)', borderRadius: 10, transition: 'border-color .15s' }}
-            onFocusCapture={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--green-500)'}
-            onBlurCapture={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--hairline)'}>
-            <span style={{ fontSize: 14, color: 'var(--text-3)' }}>🔒</span>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              placeholder="••••••••"
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-1)', fontSize: 14, fontFamily: 'inherit' }} />
+          <div style={inputWrap('password')}>
+            <span style={{ fontSize: 14, color: 'var(--text-3)', flexShrink: 0 }}>🔒</span>
+            <input
+              type="password" value={password} onChange={e => setPassword(e.target.value)}
+              required placeholder="••••••••"
+              autoComplete="current-password"
+              onFocus={() => setFocusedField('password')}
+              onBlur={() => setFocusedField(null)}
+              style={inputStyle}
+            />
           </div>
         </div>
 
@@ -171,9 +191,10 @@ export default function LoginPage() {
         )}
 
         <button type="submit" disabled={loading} style={{
-          width: '100%', height: 48, borderRadius: 10, border: 'none',
+          width: '100%', height: 52, borderRadius: 10, border: 'none',
           background: loading ? 'var(--green-600)' : 'var(--green-500)',
-          color: '#062014', fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+          color: '#062014', fontSize: 16, fontWeight: 700,
+          cursor: loading ? 'not-allowed' : 'pointer',
           fontFamily: 'inherit', letterSpacing: '-0.01em',
           boxShadow: loading ? 'none' : '0 0 0 1px rgba(46,212,111,0.3), 0 8px 24px -8px rgba(46,212,111,0.4)',
           transition: 'all .15s',
@@ -183,60 +204,50 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {/* Divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
         <span style={{ fontSize: 12, color: 'var(--text-3)' }}>หรือ</span>
         <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
       </div>
 
-      {/* Social */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
         <button onClick={handleGoogle} style={{
-          height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          height: 48, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)',
-          color: 'var(--text-1)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-          transition: 'border-color .15s',
-        }}
-          onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--hairline-strong)'}
-          onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--hairline)'}>
+          color: 'var(--text-1)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+        }}>
           <span style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#4285f4', flexShrink: 0 }}>G</span>
           Google
         </button>
         <button style={{
-          height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          height: 48, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)',
-          color: 'var(--text-1)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-          transition: 'border-color .15s',
-        }}
-          onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--hairline-strong)'}
-          onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--hairline)'}>
+          color: 'var(--text-1)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+        }}>
           <span style={{ width: 16, height: 16, borderRadius: '50%', background: '#06c755', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0 }}>L</span>
           LINE
         </button>
       </div>
 
-      {/* Toggle mode */}
-      <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-3)', margin: '0 0 16px' }}>
+      <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--text-3)', margin: '0 0 16px' }}>
         {mode === 'login' ? 'ยังไม่มีบัญชี? ' : 'มีบัญชีแล้ว? '}
         <button onClick={() => { setMode(m => m === 'login' ? 'register' : 'login'); setError(null); setSuccess(null) }}
-          style={{ color: 'var(--green-400)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}>
+          style={{ color: 'var(--green-400)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>
           {mode === 'login' ? 'สมัครสมาชิก — ทดลองฟรี 7 วัน' : 'เข้าสู่ระบบ'}
         </button>
       </p>
 
-      {/* Demo button */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: 'var(--green-soft)', border: '1px solid rgba(46,212,111,.25)',
         borderRadius: 10, padding: '12px 16px',
       }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--green-300)' }}>🎁 ทดลองใช้ฟรี 7 วัน</div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>ไม่ต้องใส่บัตรเครดิต</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green-300)' }}>🎁 ทดลองใช้ฟรี 7 วัน</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>ไม่ต้องใส่บัตรเครดิต</div>
         </div>
         <button onClick={handleDemo} style={{
-          padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+          padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
           background: 'var(--green-500)', color: '#062014', border: 'none',
           cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
         }}>ดู Demo →</button>
@@ -244,7 +255,6 @@ export default function LoginPage() {
     </div>
   )
 
-  // ── Mobile: single column ──────────────────────────────────────
   if (isMobile) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-deep)', overflowY: 'auto' }}>
@@ -253,11 +263,8 @@ export default function LoginPage() {
     )
   }
 
-  // ── Desktop: split layout ──────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1.1fr 1fr', background: 'var(--bg-deep)' }}>
-
-      {/* Left — brand panel */}
       <div style={{
         position: 'relative', overflow: 'hidden',
         background: 'radial-gradient(circle at 20% 30%, rgba(46,212,111,.15), transparent 50%), radial-gradient(circle at 80% 70%, rgba(46,212,111,.08), transparent 50%), var(--bg-base)',
@@ -265,46 +272,27 @@ export default function LoginPage() {
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
         padding: 48,
       }}>
-        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--green-500), var(--green-700))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#062014', fontWeight: 800, fontSize: 16, letterSpacing: '-0.04em',
-            boxShadow: '0 0 0 1px rgba(46,212,111,0.4), 0 0 24px rgba(46,212,111,0.35)',
-          }}>OQ</div>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, var(--green-500), var(--green-700))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#062014', fontWeight: 800, fontSize: 16, letterSpacing: '-0.04em', boxShadow: '0 0 0 1px rgba(46,212,111,0.4), 0 0 24px rgba(46,212,111,0.35)' }}>OQ</div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-1)' }}>OverIQ</div>
             <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Live Football Betting Assistant</div>
           </div>
         </div>
-
-        {/* Hero text */}
         <div style={{ maxWidth: 480 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'var(--green-soft)', border: '1px solid rgba(46,212,111,.3)', marginBottom: 20 }}>
             <span className="dot live" />
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green-300)', letterSpacing: '0.06em' }}>LIVE • 12 MATCHES NOW</span>
           </div>
           <h1 style={{ fontSize: 46, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.05, margin: '0 0 16px', color: 'var(--text-1)' }}>
-            ดูทุกคู่ <span style={{ color: 'var(--green-400)' }}>ในตาเดียว</span><br />
-            ไม่พลาดจังหวะทอง
+            ดูทุกคู่ <span style={{ color: 'var(--green-400)' }}>ในตาเดียว</span><br />ไม่พลาดจังหวะทอง
           </h1>
           <p style={{ fontSize: 15, color: 'var(--text-2)', lineHeight: 1.6, margin: '0 0 28px' }}>
-            AI ของเราดูบอลสด <span style={{ color: 'var(--text-1)' }}>ทุกคู่พร้อมกัน</span> คำนวณ Shots, xG,<br />
-            Dangerous Attack, Odds flow แล้วจัดอันดับ — แจ้งเตือนทันทีเมื่อถึงจังหวะ
+            AI ของเราดูบอลสด <span style={{ color: 'var(--text-1)' }}>ทุกคู่พร้อมกัน</span> คำนวณ Shots, xG,<br />Dangerous Attack, Odds flow แล้วจัดอันดับ — แจ้งเตือนทันทีเมื่อถึงจังหวะ
           </p>
-
-          {/* Sample card */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 14,
-            padding: 16, background: 'var(--bg-elev-1)', borderRadius: 14,
-            border: '1px solid rgba(46,212,111,.3)', maxWidth: 400,
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16, background: 'var(--bg-elev-1)', borderRadius: 14, border: '1px solid rgba(46,212,111,.3)', maxWidth: 400 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-              <span style={{ fontSize: 11, color: 'var(--green-300)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <span className="dot live" /> 67' • Premier League
-              </span>
+              <span style={{ fontSize: 11, color: 'var(--green-300)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><span className="dot live" /> 67' • Premier League</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>Man City 1 – 1 Arsenal</span>
               <span style={{ fontSize: 11, color: 'var(--text-3)' }}>SOG 9 • xG 1.8 vs 1.4 • Over 2.5 @ 1.85</span>
             </div>
@@ -314,16 +302,12 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-
-        {/* Bottom stats */}
         <div style={{ display: 'flex', gap: 28, fontSize: 11, color: 'var(--text-3)' }}>
           <span>⚡ Real-time signals</span>
           <span>🎯 Personalized alerts</span>
           <span>📊 12+ leagues covered</span>
         </div>
       </div>
-
-      {/* Right — form */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-deep)', overflowY: 'auto' }}>
         <FormPanel />
       </div>
