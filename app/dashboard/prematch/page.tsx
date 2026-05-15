@@ -40,8 +40,8 @@ export default function PreMatchPage() {
   }))
 
   const visible = matches.filter(m => {
-    if (filter.signal === 'BOOKMARK' && !bookmarks.has(m.id)) return false
-    if (filter.signal !== 'ALL' && filter.signal !== 'BOOKMARK' && m.signal !== filter.signal) return false
+    if ((filter.signal as any) === 'BOOKMARK' && !bookmarks.has(m.id)) return false
+    if (filter.signal !== 'ALL' && (filter.signal as any) !== 'BOOKMARK' && m.signal !== filter.signal) return false
     if (filter.league !== 'ALL' && m.league !== filter.league) return false
     if (filter.search && !`${m.homeTeam} ${m.awayTeam} ${m.league}`.toLowerCase().includes(filter.search.toLowerCase())) return false
     return true
