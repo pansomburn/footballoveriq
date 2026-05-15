@@ -1,68 +1,33 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useRouter }    from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 type Mode = 'login' | 'register'
 
-export default function LoginPage() {
-  const router   = useRouter()
-  const supabase = createClient()
+// ── ย้ายออกมาข้างนอก LoginPage เพื่อไม่ให้ re-create ทุก render ──
+interface FormPanelProps {
+  isMobile: boolean
+  mode: Mode
+  email: string; setEmail: (v: string) => void
+  password: string; setPassword: (v: string) => void
+  name: string; setName: (v: string) => void
+  loading: boolean
+  error: string | null
+  success: string | null
+  focusedField: string | null; setFocusedField: (v: string | null) => void
+  onSubmit: (e: React.FormEvent) => void
+  onGoogle: () => void
+  onDemo: () => void
+  onToggleMode: () => void
+}
 
-  const [mode,     setMode]     = useState<Mode>('login')
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [name,     setName]     = useState('')
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState<string|null>(null)
-  const [success,  setSuccess]  = useState<string|null>(null)
-  const [isMobile, setIsMobile] = useState(false)
-  const [focusedField, setFocusedField] = useState<string|null>(null)
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true); setError(null); setSuccess(null)
-    try {
-      if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-        router.push('/dashboard/live')
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: { data: { display_name: name } },
-        })
-        if (error) throw error
-        setSuccess('สมัครสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยัน')
-      }
-    } catch (err: any) {
-      const msg: Record<string,string> = {
-        'Invalid login credentials': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
-        'Email not confirmed':       'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ',
-        'User already registered':   'อีเมลนี้ถูกใช้งานแล้ว',
-      }
-      setError(msg[err.message] ?? err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options:  { redirectTo: `${location.origin}/auth/callback` },
-    })
-  }
-
-  function handleDemo() { router.push('/dashboard/live') }
-
+function FormPanel({
+  isMobile, mode, email, setEmail, password, setPassword,
+  name, setName, loading, error, success,
+  focusedField, setFocusedField,
+  onSubmit, onGoogle, onDemo, onToggleMode,
+}: FormPanelProps) {
   const fieldBorder = (field: string) =>
     focusedField === field ? 'var(--green-500)' : 'var(--hairline)'
 
@@ -80,7 +45,7 @@ export default function LoginPage() {
     fontSize: 16, fontFamily: 'inherit',
   }
 
-  const FormPanel = () => (
+  return (
     <div style={{
       width: '100%',
       maxWidth: isMobile ? '100%' : 420,
@@ -131,7 +96,7 @@ export default function LoginPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {mode === 'register' && (
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 7 }}>ชื่อที่แสดง</label>
@@ -211,7 +176,7 @@ export default function LoginPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-        <button onClick={handleGoogle} style={{
+        <button onClick={onGoogle} style={{
           height: 48, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)',
           color: 'var(--text-1)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
@@ -231,7 +196,7 @@ export default function LoginPage() {
 
       <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--text-3)', margin: '0 0 16px' }}>
         {mode === 'login' ? 'ยังไม่มีบัญชี? ' : 'มีบัญชีแล้ว? '}
-        <button onClick={() => { setMode(m => m === 'login' ? 'register' : 'login'); setError(null); setSuccess(null) }}
+        <button onClick={onToggleMode}
           style={{ color: 'var(--green-400)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>
           {mode === 'login' ? 'สมัครสมาชิก — ทดลองฟรี 7 วัน' : 'เข้าสู่ระบบ'}
         </button>
@@ -246,7 +211,7 @@ export default function LoginPage() {
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green-300)' }}>🎁 ทดลองใช้ฟรี 7 วัน</div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>ไม่ต้องใส่บัตรเครดิต</div>
         </div>
-        <button onClick={handleDemo} style={{
+        <button onClick={onDemo} style={{
           padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
           background: 'var(--green-500)', color: '#062014', border: 'none',
           cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
@@ -254,11 +219,85 @@ export default function LoginPage() {
       </div>
     </div>
   )
+}
+
+// ── Main page ──────────────────────────────────────────────────────
+export default function LoginPage() {
+  const router   = useRouter()
+  const supabase = createClient()
+
+  const [mode,         setMode]         = useState<Mode>('login')
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
+  const [name,         setName]         = useState('')
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState<string | null>(null)
+  const [success,      setSuccess]      = useState<string | null>(null)
+  const [isMobile,     setIsMobile]     = useState(false)
+  const [focusedField, setFocusedField] = useState<string | null>(null)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true); setError(null); setSuccess(null)
+    try {
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        router.push('/dashboard/live')
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email, password,
+          options: { data: { display_name: name } },
+        })
+        if (error) throw error
+        setSuccess('สมัครสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยัน')
+      }
+    } catch (err: any) {
+      const msg: Record<string, string> = {
+        'Invalid login credentials': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+        'Email not confirmed':       'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ',
+        'User already registered':   'อีเมลนี้ถูกใช้งานแล้ว',
+      }
+      setError(msg[err.message] ?? err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${location.origin}/auth/callback` },
+    })
+  }
+
+  const formProps: FormPanelProps = {
+    isMobile, mode,
+    email, setEmail,
+    password, setPassword,
+    name, setName,
+    loading, error, success,
+    focusedField, setFocusedField,
+    onSubmit: handleSubmit,
+    onGoogle: handleGoogle,
+    onDemo: () => router.push('/dashboard/live'),
+    onToggleMode: () => {
+      setMode(m => m === 'login' ? 'register' : 'login')
+      setError(null); setSuccess(null)
+    },
+  }
 
   if (isMobile) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-deep)', overflowY: 'auto' }}>
-        <FormPanel />
+        <FormPanel {...formProps} />
       </div>
     )
   }
@@ -309,7 +348,7 @@ export default function LoginPage() {
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-deep)', overflowY: 'auto' }}>
-        <FormPanel />
+        <FormPanel {...formProps} />
       </div>
     </div>
   )
