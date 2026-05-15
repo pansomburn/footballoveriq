@@ -1,0 +1,193 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== OverIQ Design System ===== */
+:root {
+  /* Surfaces */
+  --bg-deep:     #070f0c;
+  --bg-base:     #0b1612;
+  --bg-elev-1:   #11201a;
+  --bg-elev-2:   #162a22;
+  --bg-elev-3:   #1c3329;
+  --hairline:        #1d3a2e;
+  --hairline-strong: #29543f;
+
+  /* Text */
+  --text-1:  #e7f1eb;
+  --text-2:  #9cb5a9;
+  --text-3:  #647a70;
+  --text-dim: #43554c;
+
+  /* Brand green */
+  --green-700: #126e3c;
+  --green-600: #18904d;
+  --green-500: #1fb55f;
+  --green-400: #2ed46f;
+  --green-300: #6deb9a;
+  --green-glow: rgba(46, 212, 111, 0.22);
+  --green-soft: rgba(46, 212, 111, 0.10);
+
+  /* Semantic */
+  --amber:       #f5a524;
+  --amber-soft:  rgba(245, 165, 36, 0.12);
+  --orange:      #fb923c;
+  --orange-soft: rgba(251, 146, 60, 0.12);
+  --red:         #ef4856;
+  --red-soft:    rgba(239, 72, 86, 0.13);
+  --blue:        #5b9dff;
+  --blue-soft:   rgba(91, 157, 255, 0.12);
+  --violet:      #a78bfa;
+
+  /* Legacy aliases (ให้ component เดิมไม่พัง) */
+  --bg:       var(--bg-base);
+  --bg2:      var(--bg-elev-1);
+  --bg3:      var(--bg-elev-2);
+  --bg4:      var(--bg-elev-3);
+  --border:   var(--hairline);
+  --border2:  var(--hairline-strong);
+  --green:    var(--green-500);
+  --green-dim: var(--green-600);
+  --green-bg: var(--green-soft);
+  --amber-bg: var(--amber-soft);
+  --blue-bg:  var(--blue-soft);
+  --red-bg:   var(--red-soft);
+  --text:     var(--text-1);
+  --muted:    var(--text-2);
+  --dim:      var(--text-dim);
+
+  /* Radii */
+  --r-xs:  6px;
+  --r-sm:  8px;
+  --r-md:  10px;
+  --r-lg:  14px;
+  --r-xl:  18px;
+  --r-2xl: 22px;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:   0 6px 24px -8px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 0 1px rgba(46, 212, 111, 0.35), 0 12px 32px -10px rgba(46, 212, 111, 0.25);
+
+  /* Typography */
+  --font-sans:    "Inter", "IBM Plex Sans Thai", system-ui, -apple-system, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: "Inter", "IBM Plex Sans Thai", sans-serif;
+}
+
+/* ===== Base reset ===== */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-deep);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  letter-spacing: -0.005em;
+  min-height: 100vh;
+}
+button { font-family: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+input  { font-family: inherit; }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-elev-2); border-radius: 999px; border: 2px solid var(--bg-deep); }
+::-webkit-scrollbar-thumb:hover { background: var(--bg-elev-3); }
+
+/* ===== Utility classes ===== */
+.mono { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+.tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* Live dot */
+.dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+.dot.live { background: var(--green-400); box-shadow: 0 0 0 4px rgba(46,212,111,.15); animation: pulse 1.6s ease-out infinite; }
+
+/* Chip */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  border: 1px solid var(--hairline);
+  color: var(--text-2);
+  background: var(--bg-elev-1);
+  text-transform: uppercase;
+}
+.chip.green  { background: var(--green-soft);  color: var(--green-300); border-color: rgba(46,212,111,.3); }
+.chip.amber  { background: var(--amber-soft);  color: var(--amber);     border-color: rgba(245,165,36,.3); }
+.chip.orange { background: var(--orange-soft); color: var(--orange);    border-color: rgba(251,146,60,.3); }
+.chip.red    { background: var(--red-soft);    color: var(--red);       border-color: rgba(239,72,86,.3); }
+.chip.blue   { background: var(--blue-soft);   color: var(--blue);      border-color: rgba(91,157,255,.3); }
+
+/* AI Score bar */
+.aiscore-fill {
+  background: linear-gradient(90deg, var(--green-600), var(--green-400));
+  height: 100%;
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+}
+.aiscore-fill::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+  animation: shimmer 2.8s ease-in-out infinite;
+}
+
+/* Card accent line */
+.accent-line {
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green-500) 40%, var(--green-500) 60%, transparent);
+  opacity: 0.7;
+}
+
+/* Score tick colors */
+.tick-up   { color: var(--green-400); }
+.tick-down { color: var(--red); }
+.tick-flat { color: var(--text-3); }
+
+/* ===== Animations ===== */
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(46,212,111,.45); }
+  70%  { box-shadow: 0 0 0 8px rgba(46,212,111,0); }
+  100% { box-shadow: 0 0 0 0   rgba(46,212,111,0); }
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .3; }
+}
+@keyframes pulse2 {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .5; transform: scale(.85); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes slide-in {
+  from { transform: translateY(-12px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+@keyframes glow-pop {
+  0%   { box-shadow: 0 0 0 0   rgba(46,212,111,.4); }
+  60%  { box-shadow: 0 0 0 10px rgba(46,212,111,0); }
+  100% { box-shadow: 0 0 0 0   rgba(46,212,111,0); }
+}
+
+.animate-fadeUp      { animation: fadeUp .3s ease both; }
+.animate-blink       { animation: blink 1s infinite; }
+.animate-pulse2      { animation: pulse2 1.5s infinite; }
+.animate-spin-slow   { animation: spin .6s linear infinite; }
+.animate-slide-in    { animation: slide-in .2s ease both; }
+.animate-glow-pop    { animation: glow-pop .6s ease both; }
