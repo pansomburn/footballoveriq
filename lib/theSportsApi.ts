@@ -5,6 +5,21 @@ const BASE   = 'https://api.thesports.com'
 const USER   = process.env.THESPORTS_USER   ?? ''
 const SECRET = process.env.THESPORTS_SECRET ?? ''
 
+// ── Technical Statistics type codes ──────────────────────────────
+// 2=Corner, 3=Yellow, 4=Red, 21=Shots on target, 22=Shots off target
+// 23=Attacks, 24=Dangerous Attack, 25=Ball possession, 37=Blocked shots
+const STAT = {
+  CORNER:           2,
+  YELLOW:           3,
+  RED:              4,
+  SHOTS_ON_TARGET:  21,
+  SHOTS_OFF_TARGET: 22,
+  ATTACKS:          23,
+  DANGEROUS:        24,
+  POSSESSION:       25,
+  BLOCKED:          37,
+}
+
 // ── Core fetch ────────────────────────────────────────────────────
 async function apiFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
   if (!USER || !SECRET) {
@@ -17,29 +32,23 @@ async function apiFetch<T>(path: string, params: Record<string, string> = {}): P
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
 
   const res = await fetch(url.toString(), { cache: 'no-store' })
-
   if (!res.ok) throw new Error(`TheSports HTTP error: ${res.status} ${path}`)
 
   const json = await res.json()
-
-  // Handle Unauthorized or error response
   if (json.err) throw new Error(`TheSports error: ${json.err}`)
 
   return json as T
 }
 
-// ── Types (TheSports raw) ─────────────────────────────────────────
+// ── Raw Types ─────────────────────────────────────────────────────
 
 interface TheSportsScheduleResponse {
+  code?: number
   results?: TheSportsMatch[]
   results_extra?: {
     competition?: TheSportsCompetition[]
     team?: TheSportsTeam[]
   }
-}
-
-interface TheSportsLiveResponse {
-  results?: TheSportsMatch[]
 }
 
 interface TheSportsMatch {
@@ -68,7 +77,21 @@ interface TheSportsTeam {
   logo: string
 }
 
-// ── Output types ──────────────────────────────────────────────────
+// detail_live format
+interface TheSportsDetailLiveResponse {
+  code?: number
+  results?: TheSportsDetailMatch[]
+}
+
+interface TheSportsDetailMatch {
+  id: string
+  score: [string, number, number[], number[], number, string]
+  stats?: Array<{ type: number; home: number; away: number }>
+  incidents?: any[]
+  tlive?: any[]
+}
+
+// ── Output Types ──────────────────────────────────────────────────
 
 export interface ApiFixture {
   fixture: { id: number; date: string; status: { short: string; elapsed: number | null } }
@@ -94,12 +117,34 @@ export interface ApiOdds {
   }>
 }
 
+// detail_live enriched
+export interface ApiLiveDetail {
+  matchId:          string
+  statusId:         number
+  scoreHome:        number
+  scoreAway:        number
+  htHome:           number
+  htAway:           number
+  corners:          number
+  yellowCards:      number
+  redCards:         number
+  shotsOnTarget:    number
+  shotsOffTarget:   number
+  attacks:          number
+  dangerousAttacks: number
+  possessionHome:   number
+  possessionAway:   number
+  kickOffTs:        number
+  minute:           number
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 function mapStatus(statusId: number): string {
   const map: Record<number, string> = {
     1: 'NS', 2: '1H', 3: 'HT', 4: '2H',
-    5: 'ET', 6: 'PEN', 7: 'FT', 8: 'AET', 9: 'FT',
+    5: 'ET', 6: 'ET', 7: 'PEN', 8: 'FT',
+    9: 'DELAY', 10: 'INT', 11: 'INT', 12: 'CANC', 13: 'TBD',
   }
   return map[statusId] ?? 'NS'
 }
@@ -112,8 +157,22 @@ function estimateElapsed(matchTime: number, statusId: number): number | null {
   return Math.min(elapsedMin, 45)
 }
 
+// คำนวณ minute จาก kickoff timestamp ตาม doc TheSports
+function calcMinute(kickOffTs: number, statusId: number): number {
+  if (!kickOffTs || statusId === 1 || statusId >= 7) return 0
+  if (statusId === 3) return 45
+  const elapsed = Math.floor((Date.now() / 1000 - kickOffTs) / 60) + 1
+  if (statusId === 4) return Math.min(45 + elapsed, 90 + 5)
+  return Math.min(elapsed, 45 + 5)
+}
+
 function toISO(unixTs: number): string {
   return new Date(unixTs * 1000).toISOString()
+}
+
+function getStat(stats: Array<{ type: number; home: number; away: number }>, type: number): { home: number; away: number } {
+  const s = stats.find(x => x.type === type)
+  return s ? { home: s.home, away: s.away } : { home: 0, away: 0 }
 }
 
 function mapMatchToFixture(
@@ -160,16 +219,62 @@ function mapMatchToFixture(
   }
 }
 
+// ── Parse detail_live ─────────────────────────────────────────────
+function parseDetailLive(raw: TheSportsDetailMatch): ApiLiveDetail {
+  const score     = raw.score ?? []
+  const statusId  = (score[1] as number) ?? 0
+  const homeArr   = (score[2] as number[]) ?? []
+  const awayArr   = (score[3] as number[]) ?? []
+  const kickOffTs = (score[4] as number) ?? 0
+  const stats     = raw.stats ?? []
+
+  const shotsOn  = getStat(stats, STAT.SHOTS_ON_TARGET)
+  const shotsOff = getStat(stats, STAT.SHOTS_OFF_TARGET)
+  const attacks  = getStat(stats, STAT.ATTACKS)
+  const danger   = getStat(stats, STAT.DANGEROUS)
+  const poss     = getStat(stats, STAT.POSSESSION)
+  const corners  = getStat(stats, STAT.CORNER)
+  const yellow   = getStat(stats, STAT.YELLOW)
+  const red      = getStat(stats, STAT.RED)
+
+  const minute = calcMinute(kickOffTs, statusId)
+
+  return {
+    matchId:          raw.id,
+    statusId,
+    scoreHome:        homeArr[0] ?? 0,
+    scoreAway:        awayArr[0] ?? 0,
+    htHome:           homeArr[1] ?? 0,
+    htAway:           awayArr[1] ?? 0,
+    corners:          corners.home + corners.away,
+    yellowCards:      yellow.home + yellow.away,
+    redCards:         red.home + red.away,
+    shotsOnTarget:    shotsOn.home + shotsOn.away,
+    shotsOffTarget:   shotsOff.home + shotsOff.away,
+    attacks:          attacks.home + attacks.away,
+    dangerousAttacks: danger.home + danger.away,
+    possessionHome:   poss.home || 50,
+    possessionAway:   poss.away || 50,
+    kickOffTs,
+    minute,
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────
 
+/** ดึง live fixtures พร้อม real-time stats จาก detail_live */
 export async function getLiveFixtures(): Promise<ApiFixture[]> {
   if (!USER || !SECRET) return []
 
   try {
-    const data = await apiFetch<TheSportsLiveResponse>('/v1/football/match/live')
-    const matches = data.results ?? []
+    // 1) ดึง real-time data
+    const liveData = await apiFetch<TheSportsDetailLiveResponse>(
+      '/v1/football/match/detail_live'
+    )
+    const liveMatches = liveData.results ?? []
+    if (liveMatches.length === 0) return []
 
-    // ดึง schedule วันนี้เพื่อเอาชื่อทีม/ลีก
+    // 2) ดึง schedule วันนี้เพื่อเอาชื่อทีม/ลีก
     let extra: TheSportsScheduleResponse['results_extra'] = {}
     try {
       const today = new Date().toISOString().slice(0, 10)
@@ -178,10 +283,49 @@ export async function getLiveFixtures(): Promise<ApiFixture[]> {
       )
       extra = scheduleData.results_extra ?? {}
     } catch (e) {
-      console.warn('[getLiveFixtures] failed to fetch schedule extra:', e)
+      console.warn('[getLiveFixtures] schedule extra failed:', e)
     }
 
-    return matches.slice(0, 20).map(m => mapMatchToFixture(m, extra))
+    // 3) join ข้อมูล
+    const scheduleResults = await apiFetch<TheSportsScheduleResponse>(
+      '/v1/football/match/diary',
+      { date: new Date().toISOString().slice(0, 10) }
+    ).then(d => d.results ?? []).catch(() => [] as TheSportsMatch[])
+
+    return liveMatches.slice(0, 20).map(liveMatch => {
+      const detail   = parseDetailLive(liveMatch)
+      const schedule = scheduleResults.find(s => s.id === liveMatch.id)
+
+      const homeTeam  = extra?.team?.find(t => t.id === schedule?.home_team_id)
+      const awayTeam  = extra?.team?.find(t => t.id === schedule?.away_team_id)
+      const comp      = extra?.competition?.find(c => c.id === schedule?.competition_id)
+
+      return {
+        fixture: {
+          id:     parseInt(liveMatch.id, 10) || 0,
+          date:   schedule ? toISO(schedule.match_time) : new Date().toISOString(),
+          status: {
+            short:   mapStatus(detail.statusId),
+            elapsed: detail.minute,
+          },
+        },
+        league: {
+          id:      parseInt(schedule?.competition_id ?? '0', 10),
+          name:    comp?.name         ?? 'Unknown League',
+          country: comp?.country_name ?? '-',
+          logo:    comp?.logo         ?? '',
+          flag:    '',
+        },
+        teams: {
+          home: { id: parseInt(schedule?.home_team_id ?? '0', 10), name: homeTeam?.name ?? `Match ${liveMatch.id}` },
+          away: { id: parseInt(schedule?.away_team_id ?? '0', 10), name: awayTeam?.name ?? 'Away' },
+        },
+        goals: { home: detail.scoreHome, away: detail.scoreAway },
+        score: { halftime: { home: detail.htHome, away: detail.htAway } },
+        // extra stats สำหรับ live route
+        _detail: detail,
+      } as ApiFixture & { _detail: ApiLiveDetail }
+    })
   } catch (e) {
     console.error('[getLiveFixtures]', e)
     return []
@@ -195,7 +339,8 @@ export async function getFixturesByDate(date: string): Promise<ApiFixture[]> {
     const data = await apiFetch<TheSportsScheduleResponse>(
       '/v1/football/match/diary', { date }
     )
-    const matches = (data.results ?? []).filter(m => m.status_id >= 1 && m.status_id <= 4)
+    // กรอง NS(1) + กำลังแข่ง(2-5)
+    const matches = (data.results ?? []).filter(m => m.status_id >= 1 && m.status_id <= 5)
     const extra   = data.results_extra ?? {}
     return matches.slice(0, 30).map(m => mapMatchToFixture(m, extra))
   } catch (e) {
@@ -204,11 +349,11 @@ export async function getFixturesByDate(date: string): Promise<ApiFixture[]> {
   }
 }
 
-export async function getFixtureStats(fixtureId: number): Promise<ApiFixtureStats[]> {
+export async function getFixtureStats(_fixtureId: number): Promise<ApiFixtureStats[]> {
   return []
 }
 
-export async function getFixtureOdds(fixtureId: number): Promise<ApiOdds[]> {
+export async function getFixtureOdds(_fixtureId: number): Promise<ApiOdds[]> {
   return []
 }
 
