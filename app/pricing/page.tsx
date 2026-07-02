@@ -1,8 +1,27 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
 
 type Billing = 'weekly' | 'monthly'
+
+interface OmiseCard {
+  configure: (options: { publicKey: string }) => void
+  open: (options: {
+    frameLabel: string
+    submitLabel: string
+    currency: string
+    amount: number
+    onCreateTokenSuccess: (nonce: string) => Promise<void>
+    onFormClosed: () => void
+  }) => void
+}
+
+declare global {
+  interface Window {
+    OmiseCard?: OmiseCard
+  }
+}
 
 const PLANS = {
   weekly: [
@@ -25,9 +44,11 @@ const FEATURES: Record<string, string[][]> = {
 
 export default function PricingPage() {
   const router  = useRouter()
+  const supabase = createClient()
   const [billing, setBilling]   = useState<Billing>('monthly')
   const [loading, setLoading]   = useState<string|null>(null)
   const [error,   setError]     = useState<string|null>(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   // Load Omise.js
   useEffect(() => {
@@ -38,13 +59,30 @@ export default function PricingPage() {
     return () => { document.head.removeChild(s) }
   }, [])
 
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   async function handleSelect(planKey: string) {
-    if (planKey === 'free') { router.push('/dashboard/live'); return }
     setError(null)
     setLoading(planKey)
 
     try {
-      const OmiseCard = (window as any).OmiseCard
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push(`/auth/login?mode=register&plan=${encodeURIComponent(planKey)}`)
+        return
+      }
+
+      if (planKey === 'free') {
+        router.push('/dashboard/live')
+        return
+      }
+
+      const OmiseCard = window.OmiseCard
       if (!OmiseCard) throw new Error('Payment system not loaded yet')
 
       const pubKey = process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY ?? 'pkey_test_placeholder'
@@ -54,7 +92,7 @@ export default function PricingPage() {
         frameLabel:  'OverIQ',
         submitLabel: 'ชำระเงิน',
         currency:    'THB',
-        amount:      PLANS[billing].find(p => p.key === planKey)?.price ?? 0 * 100,
+        amount:      (PLANS[billing].find(p => p.key === planKey)?.price ?? 0) * 100,
         onCreateTokenSuccess: async (nonce: string) => {
           const res = await fetch('/api/payment/charge', {
             method: 'POST',
@@ -67,8 +105,8 @@ export default function PricingPage() {
         },
         onFormClosed: () => setLoading(null),
       })
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment failed')
       setLoading(null)
     }
   }
@@ -91,7 +129,7 @@ export default function PricingPage() {
           className="ml-auto cursor-pointer font-[inherit]">← กลับ Dashboard</button>
       </header>
 
-      <div className="max-w-[900px] mx-auto px-6 py-12">
+      <div style={{ maxWidth: 980, margin: '0 auto', padding: isMobile ? '28px 14px 40px' : '48px 24px' }}>
 
         {/* Hero */}
         <div className="text-center mb-10">
@@ -126,15 +164,24 @@ export default function PricingPage() {
         </div>
 
         {/* Trial banner */}
-        <div style={{ background:'linear-gradient(135deg,rgba(0,166,81,.12) 0%,rgba(0,166,81,.04) 100%)', border:'1px solid rgba(0,166,81,.2)', borderRadius:14, padding:'18px 24px', marginBottom:32 }}
-          className="flex items-center gap-5 flex-wrap">
-          <div className="text-[28px]">🎁</div>
+        <div style={{
+          background:'linear-gradient(135deg,rgba(46,212,111,.12) 0%,rgba(46,212,111,.04) 100%)',
+          border:'1px solid rgba(46,212,111,.24)',
+          borderRadius:14,
+          padding: isMobile ? '18px' : '18px 24px',
+          marginBottom:32,
+          display: 'flex',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? 14 : 20,
+          flexDirection: isMobile ? 'column' : 'row',
+        }}>
+          <div className="text-[28px]" style={{ lineHeight: 1 }}>🎁</div>
           <div className="flex-1">
             <div className="text-[15px] font-semibold mb-1" style={{ color:'var(--text)' }}>ทดลองใช้ฟรี 7 วัน — Early Access Pricing</div>
             <div className="text-[13px]" style={{ color:'var(--muted)' }}>เข้าถึงฟีเจอร์ Pro ครบทุกอย่าง ราคา Early Access จะขึ้นหลังครบ 3 เดือน สมาชิกเก่าได้ราคาเดิมตลอด</div>
           </div>
           <button onClick={() => handleSelect('pro_monthly')}
-            style={{ background:'var(--green)', color:'#fff', borderRadius:10, height:42, padding:'0 24px', border:'none', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+            style={{ background:'var(--green)', color:'#fff', borderRadius:10, height:42, padding:'0 24px', border:'none', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', width: isMobile ? '100%' : 'auto' }}>
             เริ่มทดลองฟรี →
           </button>
         </div>
@@ -147,7 +194,7 @@ export default function PricingPage() {
         )}
 
         {/* Plan cards */}
-        <div className="grid gap-4 mb-10" style={{ gridTemplateColumns:'repeat(3,1fr)' }}>
+        <div className="grid gap-4 mb-10" style={{ gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)' }}>
           {plans.map(p => {
             const feats = FEATURES[p.key.split('_')[0]]
             const isLoading = loading === p.key
@@ -156,7 +203,7 @@ export default function PricingPage() {
                 style={{
                   background:  p.featured ? 'linear-gradient(160deg,rgba(0,166,81,.06) 0%,var(--bg2) 60%)' : 'var(--bg2)',
                   border:      p.featured ? '2px solid var(--green)' : '1px solid var(--border)',
-                  borderRadius:16, padding:'28px 24px', display:'flex', flexDirection:'column',
+                  borderRadius:16, padding: isMobile ? '22px 20px' : '28px 24px', display:'flex', flexDirection:'column',
                   position:'relative',
                 }}>
                 {p.featured && (
@@ -195,7 +242,7 @@ export default function PricingPage() {
                     color: p.btnStyle === 'green' ? '#fff' : 'var(--text)',
                     opacity: isLoading ? .7 : 1,
                   }}>
-                  {isLoading ? '⏳ กำลังโหลด...' : p.btn}
+                  {isLoading ? '⏳ กำลังโหลด...' : p.key === 'free' ? 'สมัครใช้ฟรี' : p.btn}
                 </button>
               </div>
             )

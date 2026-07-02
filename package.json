@@ -6,11 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "vercel:cron:rotate": "node scripts/rotate-cron-secret.mjs",
+    "vercel:env:sync": "node scripts/sync-vercel-env.mjs",
+    "worker:lsports": "node workers/lsports-rmq-worker.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
+    "@types/amqplib": "^0.10.8",
+    "amqplib": "^2.0.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",

@@ -16,6 +16,22 @@ export interface LiveStats {
   possessionAway:   number
 }
 
+export interface TeamLiveStats {
+  shotsOnGoal:      number
+  totalShots:       number
+  dangerousAttacks: number
+  attacks:          number
+  corners:          number
+  possession:       number
+}
+
+export interface LiveOverMarket {
+  line:       string
+  odds:       number
+  marketName: string
+  updatedAt?: string
+}
+
 export interface LiveMatch {
   id:           string
   homeTeam:     string
@@ -28,6 +44,11 @@ export interface LiveMatch {
   signal:       Signal
   aiScore:      number
   stats:        LiveStats
+  statsByTeam?: {
+    home: TeamLiveStats
+    away: TeamLiveStats
+  }
+  overMarket?:  LiveOverMarket | null
   insight:      string
   bookmarked:   boolean
   lastUpdated:  string
@@ -96,7 +117,7 @@ export interface LiveFilter {
 
 export interface PreMatchFilter {
   date:    string   // YYYY-MM-DD
-  signal:  Signal | 'ALL'
+  signal:  Signal | 'ALL' | 'BOOKMARK'
   league:  string
   market:  Market | 'ALL'
   search:  string

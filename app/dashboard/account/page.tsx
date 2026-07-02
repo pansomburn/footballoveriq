@@ -38,7 +38,7 @@ function PlanCard({ name, price, period, features, cta, highlight, current, disa
         border: '1px solid ' + (highlight ? 'var(--green-500)' : 'var(--hairline)'),
         opacity: disabled || current ? 0.5 : 1,
         pointerEvents: disabled || current ? 'none' : 'auto',
-      } as any}>{cta}</button>
+      }}>{cta}</button>
     </div>
   )
 }
@@ -118,7 +118,7 @@ export default function AccountPage() {
               { label: 'Connected accounts',       icon: '🔗' },
               { label: 'Data & privacy',           icon: '🔒' },
               { label: 'Help center',              icon: '❓' },
-            ].map((item, i) => (
+            ].map((item) => (
               <div key={item.label} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '14px 16px', cursor: 'pointer',

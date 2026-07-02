@@ -1,9 +1,16 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Topbar }            from '@/components/layout/Topbar'
 import { PreMatchCard }      from '@/components/match/PreMatchCard'
-import { getMockPreMatches } from '@/lib/mockData'
 import type { PreMatch, PreMatchFilter } from '@/types'
+
+interface PreMatchesResponse {
+  data: PreMatch[]
+  source: string
+  error?: string
+}
+
+type CountBarItem = { val: number | string; lbl: string; col: string }
 
 const LEAGUES = ['ALL','Premier League','La Liga','Bundesliga','Serie A','Ligue 1','Thai League']
 const LEAGUE_FLAGS: Record<string,string> = {
@@ -23,6 +30,10 @@ export default function PreMatchPage() {
   const [filter, setFilter] = useState<PreMatchFilter>({
     date: fmtDate(today), signal: 'ALL', league: 'ALL', market: 'ALL', search: '',
   })
+  const [matches,   setMatches]   = useState<PreMatch[]>([])
+  const [source,    setSource]    = useState('loading')
+  const [error,     setError]     = useState<string | null>(null)
+  const [loading,   setLoading]   = useState(true)
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set(['p1','p3']))
   const [isMobile, setIsMobile] = useState(false)
 
@@ -35,13 +46,47 @@ export default function PreMatchPage() {
 
   const dateTabs = [-1, 0, 1, 2, 3, 4].map(n => addDays(today, n))
 
-  const matches: PreMatch[] = getMockPreMatches(filter.date).map(m => ({
-    ...m, bookmarked: bookmarks.has(m.id),
-  }))
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await fetch(`/api/matches/prematch?date=${encodeURIComponent(filter.date)}`, { cache: 'no-store' })
+      const payload = await res.json() as PreMatchesResponse
+      if (!res.ok) throw new Error(payload.error ?? 'โหลดข้อมูลก่อนแข่งไม่สำเร็จ')
+
+      setMatches(payload.data.map(m => ({ ...m, bookmarked: bookmarks.has(m.id) })))
+      setSource(payload.source)
+      if (payload.error) setError(payload.error)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'โหลดข้อมูลก่อนแข่งไม่สำเร็จ')
+    } finally {
+      setLoading(false)
+    }
+  }, [bookmarks, filter.date])
+
+  const loadBookmarks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/bookmarks?mode=prematch', { cache: 'no-store' })
+      if (!res.ok) return
+      const payload = await res.json() as { data: string[] }
+      setBookmarks(new Set(payload.data))
+    } catch (err) {
+      console.warn('[prematch bookmarks]', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => { void load() }, 0)
+    return () => clearTimeout(t)
+  }, [load])
+  useEffect(() => {
+    const t = setTimeout(() => { void loadBookmarks() }, 0)
+    return () => clearTimeout(t)
+  }, [loadBookmarks])
 
   const visible = matches.filter(m => {
-    if ((filter.signal as any) === 'BOOKMARK' && !bookmarks.has(m.id)) return false
-    if (filter.signal !== 'ALL' && (filter.signal as any) !== 'BOOKMARK' && m.signal !== filter.signal) return false
+    if (filter.signal === 'BOOKMARK' && !bookmarks.has(m.id)) return false
+    if (filter.signal !== 'ALL' && filter.signal !== 'BOOKMARK' && m.signal !== filter.signal) return false
     if (filter.league !== 'ALL' && m.league !== filter.league) return false
     if (filter.search && !`${m.homeTeam} ${m.awayTeam} ${m.league}`.toLowerCase().includes(filter.search.toLowerCase())) return false
     return true
@@ -55,14 +100,33 @@ export default function PreMatchPage() {
   }
 
   const handleBookmark = (id: string) => {
-    setBookmarks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    const match = matches.find(item => item.id === id)
+    const willBookmark = !bookmarks.has(id)
+
+    setBookmarks(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+
+    void syncBookmark(willBookmark, id, match)
   }
 
-  const NAV = [
+  const NAV: Array<{ key: PreMatchFilter['signal']; icon: string; label: string; count: number }> = [
     { key:'ALL',      icon:'📅', label:'ทั้งหมด',   count: counts.all },
     { key:'HOT',      icon:'🔥', label:'HOT',        count: counts.hot },
     { key:'WATCH',    icon:'👁',  label:'WATCH',      count: counts.watch },
     { key:'BOOKMARK', icon:'🔖', label:'Bookmarked', count: counts.bookmark },
+  ]
+
+  const countBarItems: Array<CountBarItem | null> = [
+    { val: counts.all,   lbl: 'คู่วันนี้', col: 'var(--text-1)' },
+    null,
+    { val: counts.hot,   lbl: 'HOT',      col: 'var(--green-400)' },
+    null,
+    { val: counts.watch, lbl: 'WATCH',    col: 'var(--amber)' },
+    ...(!isMobile ? [null, { val: `🔖 ${counts.bookmark}`, lbl: 'Bookmarked', col: 'var(--text-1)' }] : []),
   ]
 
   return (
@@ -86,7 +150,7 @@ export default function PreMatchPage() {
               {NAV.map(n => {
                 const active = filter.signal === n.key
                 return (
-                  <button key={n.key} onClick={() => setFilter(f => ({ ...f, signal: n.key as any }))}
+                  <button key={n.key} onClick={() => setFilter(f => ({ ...f, signal: n.key }))}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                       padding: '9px 12px', borderRadius: 8,
@@ -175,7 +239,7 @@ export default function PreMatchPage() {
             </div>
 
             {!isMobile && (
-              <select value={filter.market} onChange={e => setFilter(f => ({ ...f, market: e.target.value as any }))}
+              <select value={filter.market} onChange={e => setFilter(f => ({ ...f, market: e.target.value as PreMatchFilter['market'] }))}
                 style={{ height: 36, padding: '0 10px', background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)', borderRadius: 8, color: 'var(--text-1)', fontSize: 13, outline: 'none', cursor: 'pointer', fontFamily: 'inherit', minWidth: 120 }}>
                 <option value="ALL">ทุกตลาด</option>
                 <option value="OVER25">Over 2.5</option>
@@ -190,7 +254,7 @@ export default function PreMatchPage() {
               {NAV.map(n => {
                 const active = filter.signal === n.key
                 return (
-                  <button key={n.key} onClick={() => setFilter(f => ({ ...f, signal: n.key as any }))}
+                  <button key={n.key} onClick={() => setFilter(f => ({ ...f, signal: n.key }))}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       padding: '7px 12px', borderRadius: 999, flexShrink: 0,
@@ -225,7 +289,7 @@ export default function PreMatchPage() {
                   }}>
                   <span style={{ fontSize: 12, fontWeight: 600 }}>{isToday ? 'วันนี้' : `${thaiDay(d)}.${d.getDate()}`}</span>
                   <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', marginTop: 2, opacity: 0.8 }}>
-                    {getMockPreMatches(ds).length} คู่
+                    {isActive ? `${matches.length} คู่` : '--'}
                   </span>
                 </button>
               )
@@ -234,25 +298,28 @@ export default function PreMatchPage() {
 
           {/* Summary bar */}
           <div style={{ background: 'var(--bg-base)', borderBottom: '1px solid var(--hairline)', padding: isMobile ? '8px 14px' : '10px 20px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            {[
-              { val: counts.all,   lbl: 'คู่วันนี้', col: 'var(--text-1)' },
-              null,
-              { val: counts.hot,   lbl: 'HOT',      col: 'var(--green-400)' },
-              null,
-              { val: counts.watch, lbl: 'WATCH',    col: 'var(--amber)' },
-              ...(!isMobile ? [null, { val: `🔖 ${counts.bookmark}`, lbl: 'Bookmarked', col: 'var(--text-1)' }] : []),
-            ].map((item, i) => item === null
+            {countBarItems.map((item, i) => item === null
               ? <div key={i} style={{ width: 1, height: 14, background: 'var(--hairline-strong)' }} />
               : <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: (item as any).col }}>{(item as any).val}</span>
-                  <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{(item as any).lbl}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: item.col }}>{item.val}</span>
+                  <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{item.lbl}</span>
                 </div>
             )}
+            <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
+              source: {source}
+            </div>
           </div>
 
           {/* Cards */}
           <div style={{ padding: isMobile ? '12px 14px' : '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {visible.length === 0
+            {error && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(245,158,11,.25)', background: 'var(--amber-bg)', color: 'var(--amber)', fontSize: 12 }}>
+                {error}
+              </div>
+            )}
+            {loading
+              ? <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-2)', fontSize: 13 }}>กำลังโหลดข้อมูลก่อนแข่ง...</div>
+              : visible.length === 0
               ? <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 0', color: 'var(--text-2)', textAlign: 'center' }}>
                   <div style={{ fontSize: 36, marginBottom: 12 }}>📅</div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-1)', marginBottom: 4 }}>ไม่พบคู่ที่ตรงเงื่อนไข</div>
@@ -267,4 +334,33 @@ export default function PreMatchPage() {
       </div>
     </div>
   )
+}
+
+async function syncBookmark(shouldSave: boolean, id: string, match?: PreMatch) {
+  try {
+    const res = await fetch('/api/bookmarks', {
+      method: shouldSave ? 'POST' : 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shouldSave
+        ? {
+          matchId: id,
+          matchMode: 'prematch',
+          homeTeam: match?.homeTeam,
+          awayTeam: match?.awayTeam,
+          league: match?.league,
+          notifyThreshold: 75,
+          notifyOnGoal: true,
+          notifyOnPressure: true,
+        }
+        : { matchId: id, matchMode: 'prematch' }
+      ),
+    })
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null) as { error?: string } | null
+      throw new Error(payload?.error ?? 'Failed to sync bookmark')
+    }
+  } catch (err) {
+    console.warn('[sync prematch bookmark]', err)
+  }
 }

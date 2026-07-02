@@ -87,8 +87,8 @@ interface TheSportsDetailMatch {
   id: string
   score: [string, number, number[], number[], number, string]
   stats?: Array<{ type: number; home: number; away: number }>
-  incidents?: any[]
-  tlive?: any[]
+  incidents?: unknown[]
+  tlive?: unknown[]
 }
 
 // ── Output Types ──────────────────────────────────────────────────
@@ -349,11 +349,13 @@ export async function getFixturesByDate(date: string): Promise<ApiFixture[]> {
   }
 }
 
-export async function getFixtureStats(_fixtureId: number): Promise<ApiFixtureStats[]> {
+export async function getFixtureStats(fixtureId: number): Promise<ApiFixtureStats[]> {
+  void fixtureId
   return []
 }
 
-export async function getFixtureOdds(_fixtureId: number): Promise<ApiOdds[]> {
+export async function getFixtureOdds(fixtureId: number): Promise<ApiOdds[]> {
+  void fixtureId
   return []
 }
 

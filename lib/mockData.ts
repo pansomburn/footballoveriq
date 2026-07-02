@@ -16,6 +16,27 @@ const RAW_LIVE = [
   { id:'l11',homeTeam:'Buriram United',  awayTeam:'BG Pathum',       league:'Thai League',     leagueFlag:'🇹🇭', minute:44, scoreHome:1, scoreAway:0, sog:3,  shots:7,  da:36, tempo:38, corners:2,  xg:0.60, possH:53, possA:47, bookmarked:false },
 ]
 
+function splitStats(sog: number, shots: number, da: number, tempo: number, corners: number, possH: number, possA: number) {
+  return {
+    home: {
+      shotsOnGoal: Math.ceil(sog * 0.56),
+      totalShots: Math.ceil(shots * 0.56),
+      dangerousAttacks: Math.ceil(da * 0.58),
+      attacks: Math.ceil(tempo * 0.55),
+      corners: Math.ceil(corners * 0.55),
+      possession: possH,
+    },
+    away: {
+      shotsOnGoal: Math.max(0, Math.floor(sog * 0.44)),
+      totalShots: Math.max(0, Math.floor(shots * 0.44)),
+      dangerousAttacks: Math.max(0, Math.floor(da * 0.42)),
+      attacks: Math.max(0, Math.floor(tempo * 0.45)),
+      corners: Math.max(0, Math.floor(corners * 0.45)),
+      possession: possA,
+    },
+  }
+}
+
 export function getMockLiveMatches(): LiveMatch[] {
   return RAW_LIVE.map(m => {
     const stats = {
@@ -23,7 +44,7 @@ export function getMockLiveMatches(): LiveMatch[] {
       tempo: m.tempo, corners: m.corners, xg: m.xg,
       possessionHome: m.possH, possessionAway: m.possA,
     }
-    const oddsOver25 = 1.75 + Math.random() * 0.6
+    const oddsOver25 = mockOverOdds(m.id)
     const { total } = calcLiveScore(stats, oddsOver25, m.minute, m.scoreHome, m.scoreAway)
     const signal = scoreToSignal(total)
 
@@ -46,10 +67,17 @@ export function getMockLiveMatches(): LiveMatch[] {
       league: m.league, leagueFlag: m.leagueFlag,
       minute: m.minute, scoreHome: m.scoreHome, scoreAway: m.scoreAway,
       signal, aiScore: total, stats, bookmarked: m.bookmarked,
+      statsByTeam: splitStats(m.sog, m.shots, m.da, m.tempo, m.corners, m.possH, m.possA),
+      overMarket: { line: '2.5', odds: Number(oddsOver25.toFixed(2)), marketName: 'Total Goals' },
       insight: insights[m.id] ?? 'กำลังวิเคราะห์ข้อมูล...',
       lastUpdated: new Date().toISOString(),
     }
   }).sort((a, b) => b.aiScore - a.aiScore)
+}
+
+function mockOverOdds(id: string): number {
+  const seed = id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  return Number((1.75 + (seed % 60) / 100).toFixed(2))
 }
 
 // ─── Pre-match mock data ──────────────────────────────────────
@@ -71,8 +99,8 @@ export function getMockPreMatches(date?: string): PreMatch[] {
     const { total } = calcPreScore(factors, !!m.injured, m.ctx)
     const signal = scoreToSignal(total)
 
-    const today = new Date()
-    const iso = `${today.toISOString().split('T')[0]}T${m.kickoff}:00+07:00`
+    const matchDate = date ?? new Date().toISOString().split('T')[0]
+    const iso = `${matchDate}T${m.kickoff}:00+07:00`
 
     return {
       id: m.id, homeTeam: m.homeTeam, awayTeam: m.awayTeam,

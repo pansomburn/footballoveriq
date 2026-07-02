@@ -18,8 +18,8 @@
   /* Text */
   --text-1:  #e7f1eb;
   --text-2:  #9cb5a9;
-  --text-3:  #647a70;
-  --text-dim: #43554c;
+  --text-3:  #7f968b;
+  --text-dim: #5f7369;
 
   /* Brand green */
   --green-700: #126e3c;
@@ -191,6 +191,17 @@ input  { font-family: inherit; }
 .animate-spin-slow   { animation: spin .6s linear infinite; }
 .animate-slide-in    { animation: slide-in .2s ease both; }
 .animate-glow-pop    { animation: glow-pop .6s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
 .input-field-wrap {
   display: flex;
   align-items: center;

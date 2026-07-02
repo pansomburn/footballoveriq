@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 
+type ServerSupabase = Awaited<ReturnType<typeof createServerSupabase>>
+
+interface ChargeResponse {
+  id?: string
+  failure_code?: string
+  failure_message?: string
+}
+
 // Plan pricing in satang (1 THB = 100 satang)
 const PLANS: Record<string, { amount: number; label: string; days: number }> = {
   basic_weekly:  { amount:  14900, label: 'Basic รายสัปดาห์',  days: 7  },
@@ -52,23 +60,24 @@ export async function POST(request: Request) {
       }),
     })
 
-    const charge = await chargeRes.json()
+    const charge = await chargeRes.json() as ChargeResponse
     if (charge.failure_code) {
       return NextResponse.json({ error: charge.failure_message ?? 'Payment failed' }, { status: 402 })
     }
 
     // Activate subscription in DB
-    await activateSubscription(supabase, user.id, planKey, plan.days, charge.id)
-    return NextResponse.json({ success: true, chargeId: charge.id })
+    const chargeId = charge.id ?? 'unknown_charge'
+    await activateSubscription(supabase, user.id, planKey, plan.days, chargeId)
+    return NextResponse.json({ success: true, chargeId })
 
-  } catch (err: any) {
+  } catch (err) {
     console.error('[/api/payment/charge]', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
 
 async function activateSubscription(
-  supabase: any,
+  supabase: ServerSupabase,
   userId:   string,
   planKey:  string,
   days:     number,

@@ -1,22 +1,35 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Topbar }             from '@/components/layout/Topbar'
 import { LiveMatchCard }      from '@/components/match/LiveMatchCard'
 import { MatchDetailDrawer }  from '@/components/match/MatchDetailDrawer'
-import { getMockLiveMatches } from '@/lib/mockData'
 import type { LiveMatch, LiveFilter } from '@/types'
 
-const LEAGUES = ['ALL','Premier League','La Liga','Bundesliga','Serie A','Ligue 1','Thai League']
+interface LiveMatchesResponse {
+  data: LiveMatch[]
+  events?: Array<{ matchId: string; type: string; message: string; severity: string }>
+  source: string
+  error?: string
+}
+
+type CountBarItem = { val: number | string; lbl: string; col: string }
+
 const LEAGUE_FLAGS: Record<string,string> = {
   'ALL':'🌐','Premier League':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','La Liga':'🇪🇸','Bundesliga':'🇩🇪',
   'Serie A':'🇮🇹','Ligue 1':'🇫🇷','Thai League':'🇹🇭',
+  '2026 FIFA World Cup': '🌐',
+  'Brasileiro Serie B': '🇧🇷',
+  'Club Friendlies': '🤝',
 }
 
 export default function LiveDashboard() {
   const [matches,    setMatches]    = useState<LiveMatch[]>([])
   const [filter,     setFilter]     = useState<LiveFilter>({ signal:'ALL', league:'ALL', market:'ALL', search:'' })
   const [lastUpdate, setLastUpdate] = useState('')
-  const [bookmarks,  setBookmarks]  = useState<Set<string>>(new Set(['l1','l2']))
+  const [source,     setSource]     = useState('loading')
+  const [error,      setError]      = useState<string | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [bookmarks,  setBookmarks]  = useState<Set<string>>(new Set())
   const [spinning,   setSpinning]   = useState(false)
   const [detail,     setDetail]     = useState<LiveMatch|null>(null)
   const [isMobile,   setIsMobile]   = useState(false)
@@ -28,20 +41,61 @@ export default function LiveDashboard() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const load = useCallback(() => {
-    const data = getMockLiveMatches().map(m => ({ ...m, bookmarked: bookmarks.has(m.id) }))
-    setMatches(data)
-    const n = new Date()
-    setLastUpdate(`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`)
+  const load = useCallback(async () => {
+    try {
+      setError(null)
+      const res = await fetch('/api/matches/live', { cache: 'no-store' })
+      const payload = await res.json() as LiveMatchesResponse
+      if (!res.ok) throw new Error(payload.error ?? 'โหลดข้อมูล live ไม่สำเร็จ')
+
+      const data = payload.data.map(m => ({ ...m, bookmarked: bookmarks.has(m.id) }))
+      setMatches(data)
+      setSource(payload.source)
+      if (payload.error) setError(payload.error)
+      const n = new Date()
+      setLastUpdate(`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'โหลดข้อมูล live ไม่สำเร็จ')
+    } finally {
+      setLoading(false)
+    }
   }, [bookmarks])
 
-  useEffect(() => { load() }, [load])
-  useEffect(() => { const t = setInterval(load, 8000); return () => clearInterval(t) }, [load])
+  const loadBookmarks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/bookmarks?mode=live', { cache: 'no-store' })
+      if (!res.ok) return
+      const payload = await res.json() as { data: string[] }
+      setBookmarks(new Set(payload.data))
+    } catch (err) {
+      console.warn('[live bookmarks]', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => { void load() }, 0)
+    return () => clearTimeout(t)
+  }, [load])
+  useEffect(() => {
+    const t = setTimeout(() => { void loadBookmarks() }, 0)
+    return () => clearTimeout(t)
+  }, [loadBookmarks])
+  useEffect(() => { const t = setInterval(() => { void load() }, 15000); return () => clearInterval(t) }, [load])
 
   const handleBookmark = (id: string) => {
-    setBookmarks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    const match = matches.find(item => item.id === id)
+    const willBookmark = !bookmarks.has(id)
+
+    setBookmarks(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+
+    void syncBookmark(willBookmark, id, match)
   }
-  const handleRefresh = () => { setSpinning(true); load(); setTimeout(() => setSpinning(false), 600) }
+  const handleRefresh = () => { setSpinning(true); void load(); setTimeout(() => setSpinning(false), 600) }
   const handleOpenDetail = (id: string) => {
     const m = matches.find(x => x.id === id)
     if (m) setDetail({ ...m, bookmarked: bookmarks.has(m.id) })
@@ -63,12 +117,29 @@ export default function LiveDashboard() {
     bookmark: bookmarks.size,
   }
 
-  const NAV = [
+  const leagues = useMemo(() => {
+    const map = new Map<string, number>()
+    matches.forEach(match => map.set(match.league, (map.get(match.league) ?? 0) + 1))
+    return ['ALL', ...Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([league]) => league)]
+  }, [matches])
+
+  const NAV: Array<{ key: LiveFilter['signal']; icon: string; label: string; count: number }> = [
     { key:'ALL',      icon:'⚽', label:'ทั้งหมด',  count: counts.all },
     { key:'HOT',      icon:'🔥', label:'HOT',       count: counts.hot },
     { key:'WATCH',    icon:'👁',  label:'WATCH',     count: counts.watch },
     { key:'WAIT',     icon:'⏳', label:'WAIT',       count: counts.wait },
     { key:'BOOKMARK', icon:'🔖', label:'Bookmarked', count: counts.bookmark },
+  ]
+
+  const countBarItems: Array<CountBarItem | null> = [
+    { val: counts.all,   lbl: 'คู่ทั้งหมด', col: 'var(--text-1)' },
+    null,
+    { val: counts.hot,   lbl: 'HOT',        col: 'var(--green-400)' },
+    null,
+    { val: counts.watch, lbl: 'WATCH',      col: 'var(--amber)' },
+    ...(!isMobile ? [null, { val: `🔖 ${counts.bookmark}`, lbl: 'Bookmarked', col: 'var(--text-1)' }] : []),
   ]
 
   return (
@@ -95,7 +166,7 @@ export default function LiveDashboard() {
                 const active = filter.signal === n.key
                 return (
                   <button key={n.key}
-                    onClick={() => setFilter(f => ({ ...f, signal: n.key as any }))}
+                    onClick={() => setFilter(f => ({ ...f, signal: n.key }))}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       width: '100%', padding: '9px 12px', borderRadius: 8,
@@ -119,7 +190,7 @@ export default function LiveDashboard() {
               ลีก • Leagues
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 24 }}>
-              {LEAGUES.map(l => {
+              {leagues.map(l => {
                 const active = filter.league === l
                 const cnt = l === 'ALL' ? matches.length : matches.filter(m => m.league === l).length
                 return (
@@ -132,7 +203,7 @@ export default function LiveDashboard() {
                       border: 'none', color: active ? 'var(--text-1)' : 'var(--text-2)',
                       fontSize: 13, cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all .15s',
                     }}>
-                    <span>{LEAGUE_FLAGS[l]}</span>
+                    <span>{LEAGUE_FLAGS[l] ?? '🌐'}</span>
                     <span style={{ flex: 1 }}>{l === 'ALL' ? 'ทั้งหมด' : l}</span>
                     <span style={{ fontSize: 11, color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums' }}>{cnt}</span>
                   </button>
@@ -175,7 +246,7 @@ export default function LiveDashboard() {
               />
             </div>
             {!isMobile && (
-              <select value={filter.market} onChange={e => setFilter(f => ({ ...f, market: e.target.value as any }))}
+              <select value={filter.market} onChange={e => setFilter(f => ({ ...f, market: e.target.value as LiveFilter['market'] }))}
                 style={{ height: 36, padding: '0 10px', background: 'var(--bg-elev-1)', border: '1px solid var(--hairline)', borderRadius: 8, color: 'var(--text-1)', fontSize: 13, outline: 'none', cursor: 'pointer', fontFamily: 'inherit', minWidth: 120 }}>
                 <option value="ALL">ทุก market</option>
                 <option value="OVER25">Over 2.5</option>
@@ -197,7 +268,7 @@ export default function LiveDashboard() {
                 const active = filter.signal === n.key
                 return (
                   <button key={n.key}
-                    onClick={() => setFilter(f => ({ ...f, signal: n.key as any }))}
+                    onClick={() => setFilter(f => ({ ...f, signal: n.key }))}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       padding: '7px 12px', borderRadius: 999, flexShrink: 0,
@@ -224,29 +295,29 @@ export default function LiveDashboard() {
             padding: isMobile ? '8px 14px' : '10px 20px',
             display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16, flexWrap: 'wrap',
           }}>
-            {[
-              { val: counts.all,   lbl: 'คู่ทั้งหมด', col: 'var(--text-1)' },
-              null,
-              { val: counts.hot,   lbl: 'HOT',        col: 'var(--green-400)' },
-              null,
-              { val: counts.watch, lbl: 'WATCH',      col: 'var(--amber)' },
-              ...(!isMobile ? [null, { val: `🔖 ${counts.bookmark}`, lbl: 'Bookmarked', col: 'var(--text-1)' }] : []),
-            ].map((item, i) => item === null
+            {countBarItems.map((item, i) => item === null
               ? <div key={i} style={{ width: 1, height: 14, background: 'var(--hairline-strong)' }} />
               : <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: (item as any).col }}>{(item as any).val}</span>
-                  <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{(item as any).lbl}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: item.col }}>{item.val}</span>
+                  <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{item.lbl}</span>
                 </div>
             )}
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--green-400)' }}>
               <span className="dot live" />
-              {isMobile ? lastUpdate : `Live · อัปเดตเมื่อ ${lastUpdate}`}
+              {isMobile ? lastUpdate : `Live · ${source} · อัปเดตเมื่อ ${lastUpdate || '--:--:--'}`}
             </div>
           </div>
 
           {/* Cards */}
           <div style={{ padding: isMobile ? '12px 14px' : '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {visible.length === 0
+            {error && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(245,158,11,.25)', background: 'var(--amber-bg)', color: 'var(--amber)', fontSize: 12 }}>
+                {error}
+              </div>
+            )}
+            {loading
+              ? <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-2)', fontSize: 13 }}>กำลังโหลดข้อมูล live...</div>
+              : visible.length === 0
               ? <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 0', color: 'var(--text-2)', textAlign: 'center' }}>
                   <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-1)', marginBottom: 4 }}>ไม่พบคู่ที่ตรงเงื่อนไข</div>
@@ -264,4 +335,33 @@ export default function LiveDashboard() {
       <MatchDetailDrawer match={detail} onClose={() => setDetail(null)} />
     </div>
   )
+}
+
+async function syncBookmark(shouldSave: boolean, id: string, match?: LiveMatch) {
+  try {
+    const res = await fetch('/api/bookmarks', {
+      method: shouldSave ? 'POST' : 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shouldSave
+        ? {
+          matchId: id,
+          matchMode: 'live',
+          homeTeam: match?.homeTeam,
+          awayTeam: match?.awayTeam,
+          league: match?.league,
+          notifyThreshold: 75,
+          notifyOnGoal: true,
+          notifyOnPressure: true,
+        }
+        : { matchId: id, matchMode: 'live' }
+      ),
+    })
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null) as { error?: string } | null
+      throw new Error(payload?.error ?? 'Failed to sync bookmark')
+    }
+  } catch (err) {
+    console.warn('[sync live bookmark]', err)
+  }
 }

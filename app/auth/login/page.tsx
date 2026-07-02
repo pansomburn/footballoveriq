@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 type Mode = 'login' | 'register'
 
@@ -136,10 +136,23 @@ function FormPanel({ isMobile, mode, email, setEmail, password, setPassword, nam
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginShellFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginShellFallback() {
+  return <div style={{ minHeight: '100vh', background: 'var(--bg-deep)' }} />
+}
+
+function LoginPageContent() {
   const router   = useRouter()
+  const params   = useSearchParams()
   const supabase = createClient()
 
-  const [mode,     setMode]     = useState<Mode>('login')
+  const [mode,     setMode]     = useState<Mode>(() => params.get('mode') === 'register' ? 'register' : 'login')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [name,     setName]     = useState('')
@@ -168,13 +181,14 @@ export default function LoginPage() {
         if (error) throw error
         setSuccess('สมัครสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยัน')
       }
-    } catch (err: any) {
+    } catch (err) {
       const msg: Record<string, string> = {
         'Invalid login credentials': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
         'Email not confirmed': 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ',
         'User already registered': 'อีเมลนี้ถูกใช้งานแล้ว',
       }
-      setError(msg[err.message] ?? err.message)
+      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
+      setError(msg[message] ?? message)
     } finally {
       setLoading(false)
     }
@@ -192,7 +206,7 @@ export default function LoginPage() {
     loading, error, success,
     onSubmit: handleSubmit,
     onGoogle: handleGoogle,
-    onDemo: () => router.push('/dashboard/live'),
+    onDemo: () => router.push('/demo'),
     onToggleMode: () => { setMode(m => m === 'login' ? 'register' : 'login'); setError(null); setSuccess(null) },
   }
 
@@ -227,7 +241,7 @@ export default function LoginPage() {
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16, background: 'var(--bg-elev-1)', borderRadius: 14, border: '1px solid rgba(46,212,111,.3)', maxWidth: 400 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-              <span style={{ fontSize: 11, color: 'var(--green-300)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><span className="dot live" /> 67' • Premier League</span>
+              <span style={{ fontSize: 11, color: 'var(--green-300)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><span className="dot live" /> 67&apos; • Premier League</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>Man City 1 – 1 Arsenal</span>
               <span style={{ fontSize: 11, color: 'var(--text-3)' }}>SOG 9 • xG 1.8 vs 1.4 • Over 2.5 @ 1.85</span>
             </div>

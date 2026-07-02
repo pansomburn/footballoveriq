@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll:  () => request.cookies.getAll(),
+        getAll: () => request.cookies.getAll(),
         setAll: (list) => {
           list.forEach(({ name, value, options }) => {
             request.cookies.set(name, value)
@@ -24,19 +24,16 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
-  // ── Redirect unauthenticated users away from dashboard ──
   if (path.startsWith('/dashboard') || path.startsWith('/admin')) {
     if (!user) {
       return NextResponse.redirect(new URL('/auth/login', request.url))
     }
   }
 
-  // ── Redirect authenticated users away from login ──
   if (path === '/auth/login' && user) {
     return NextResponse.redirect(new URL('/dashboard/live', request.url))
   }
 
-  // ── Admin route: check admin role ──
   if (path.startsWith('/admin')) {
     const { data: profile } = await supabase
       .from('profiles')
